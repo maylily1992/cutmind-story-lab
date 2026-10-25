@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { AtlasGalaxy } from "./components/AtlasGalaxy";
+import { NodeDetailSheet } from "./components/NodeDetailSheet";
 import { QuickCapture } from "./components/QuickCapture";
 import {
-  atlasBranches,
-  atlasGroups,
-  atlasLayers,
   creativePrinciples,
   deepTechniques,
   masters,
-  nodeDetails,
   profileTraits,
   rareCases,
   sources,
@@ -66,8 +64,6 @@ function App() {
   const [route, setRoute] = useState<Route>("home");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [layer, setLayer] = useState<string | null>(null);
-  const [branch, setBranch] = useState<string | null>(null);
   const [workTitle, setWorkTitle] = useState("");
   const [workDuration, setWorkDuration] = useState("");
   const [workTags, setWorkTags] = useState("");
@@ -167,11 +163,8 @@ function App() {
         ) : null}
         {route === "atlas" ? (
           <AtlasPage
-            branch={branch}
-            layer={layer}
             nodes={store.techniques}
-            onBranch={setBranch}
-            onLayer={setLayer}
+            onClear={() => setSelectedId(null)}
             onSelect={setSelectedId}
             query={query}
             selectedNode={selectedNode}
@@ -320,24 +313,17 @@ function AtlasPage({
   nodes,
   query,
   setQuery,
-  layer,
-  branch,
-  onLayer,
-  onBranch,
   onSelect,
+  onClear,
   selectedNode,
 }: {
   nodes: TechniqueNode[];
   query: string;
   setQuery: (value: string) => void;
-  layer: string | null;
-  branch: string | null;
-  onLayer: (value: string | null) => void;
-  onBranch: (value: string | null) => void;
   onSelect: (id: string) => void;
+  onClear: () => void;
   selectedNode: TechniqueNode | null;
 }) {
-  const activeLayer = atlasLayers.find((item) => item.id === layer);
   const visible = nodes.filter((node) => {
     if (
       query &&
@@ -347,91 +333,22 @@ function AtlasPage({
     ) {
       return false;
     }
-    if (
-      activeLayer &&
-      !activeLayer.branches.some((branchId) =>
-        node.sourceLabel?.startsWith(`${branchId}/`),
-      )
-    ) {
-      return false;
-    }
-    if (!branch) return true;
-    return node.related.includes(branch) || node.sourceLabel?.startsWith(`${branch}/`);
-  }).slice(0, query ? 80 : 60);
-
-  if (selectedNode) {
-    const detail = nodeDetails[selectedNode.id];
-    const related = selectedNode.related
-      .map((id) => nodes.find((node) => node.id === id))
-      .filter((node): node is TechniqueNode => Boolean(node));
-    return (
-      <>
-        <button className="node-back" onClick={() => onSelect("")} type="button">
-          ← 返回图谱
-        </button>
-        <p className="eyebrow">TECHNIQUE NODE · {selectedNode.dimension}</p>
-        <h1 className="page-title">{selectedNode.name}</h1>
-        <p className="node-en">{selectedNode.aliases.join(" / ")}</p>
-        <div className="node-principle"><small>机制</small><p>{selectedNode.mechanism}</p></div>
-        <article className="node-lesson-card"><small>专业分析</small><p>{detail?.analysis ?? "把节点放回具体观众模型：它先建立什么预期，再改变哪一个变量？"}</p></article>
-        <article className="node-lesson-card"><small>具体案例</small><p>{detail?.example ?? "用一个十五秒场景建立 A 预期，只让 B 节点产生偏移。"}</p></article>
-        <article className="node-lesson-card"><small>迁移到剪辑</small><p>{detail?.transfer ?? "只改变一个时间、信息或声音变量，观察旧镜头是否重排。"}</p></article>
-        <article className="node-lesson-card misuse"><small>失效条件</small><p>{detail?.misuse ?? "没有证据链、没有可回溯变化时，形式只剩装饰。"}</p></article>
-        <SectionHead title="双向关系" note={`${related.length} 个相邻节点`} />
-        <div className="node-links">
-          {related.map((node) => (
-            <button key={node.id} onClick={() => onSelect(node.id)} type="button">
-              <span>{node.dimension}</span><b>{node.name}</b><small>{node.aliases[0]}</small>
-            </button>
-          ))}
-        </div>
-        <SectionHead title="我的使用信号" note="P0 数据" />
-        <div className="stat-strip">
-          <div><strong>{selectedNode.myUsageCount}</strong><span>使用次数</span></div>
-          <div><strong>{selectedNode.masterLevel}</strong><span>掌握等级</span></div>
-          <div><strong>{selectedNode.status}</strong><span>节点状态</span></div>
-        </div>
-      </>
-    );
-  }
+    return true;
+  }).slice(0, query ? 36 : 0);
 
   return (
     <>
       <p className="eyebrow">STORY TECHNIQUE ATLAS · {nodes.length} NODES</p>
       <h1 className="page-title">一张会生长的<br />叙事肌理网。</h1>
-      <p className="page-lead">物 → 知 → 动 → 感 → 元。每次观影、实践和讨论都能改变节点的权重与关系。</p>
-      <div className="five-layer-key">
-        <div className="five-layer-title"><b>五层故事操作系统</b><span>点击总层，缩小图谱范围</span></div>
-        {atlasLayers.map((item) => (
-          <button
-            className={layer === item.id ? "is-selected" : ""}
-            key={item.id}
-            onClick={() => { onLayer(layer === item.id ? null : item.id); onBranch(null); }}
-            type="button"
-          >
-            <b>{item.label}</b><span>{item.longLabel}</span><small>{item.question}</small>
-          </button>
-        ))}
-      </div>
+      <p className="page-lead">物 → 知 → 动 → 感 → 元。双指缩放、拖拽移动；从五层主环进入分支，再展开知识簇和具体技法。</p>
+      <AtlasGalaxy nodes={nodes} onOpenNode={onSelect} />
       <div className="atlas-controls">
-        <input className="field" onChange={(event) => setQuery(event.target.value)} placeholder="搜索术语、别名或机制…" value={query} />
-        <div className="library-filters">
-          {atlasBranches
-            .filter((item) => !activeLayer || activeLayer.branches.includes(item.id))
-            .map((item) => (
-              <button
-                className={branch === item.id ? "is-selected" : ""}
-                key={item.id}
-                onClick={() => onBranch(branch === item.id ? null : item.id)}
-                type="button"
-              >
-                {item.label}
-              </button>
-            ))}
-        </div>
+        <input className="field atlas-search" onChange={(event) => setQuery(event.target.value)} placeholder="搜索技法、别名或机制，直接定位叶片…" value={query} />
       </div>
-      <div className="atlas-node-groups">
-        {visible.map((node) => (
+      {query ? (
+        <div className="atlas-search-results">
+          <div className="atlas-search-meta"><b>搜索结果</b><span>{visible.length} 个节点</span></div>
+          {visible.map((node) => (
           <button
             className={`atlas-node-card ${node.provenance === "user" ? "personal" : ""}`}
             key={node.id}
@@ -443,8 +360,9 @@ function AtlasPage({
             <p>{node.mechanism}</p>
             <div className="atlas-node-foot"><span>{node.dimension}</span><span>{node.related.length} 条关系</span></div>
           </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
       <SectionHead title="理论底图" note={`${sources.length} 个来源`} />
       <div className="source-list">
         {sources.slice(0, 12).map((source) => (
@@ -456,6 +374,14 @@ function AtlasPage({
           </article>
         ))}
       </div>
+      {selectedNode ? (
+        <NodeDetailSheet
+          node={selectedNode}
+          nodes={nodes}
+          onClose={onClear}
+          onNavigate={onSelect}
+        />
+      ) : null}
     </>
   );
 }

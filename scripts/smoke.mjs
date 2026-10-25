@@ -16,12 +16,22 @@ Object.defineProperty(globalThis, "navigator", {
 });
 globalThis.localStorage = dom.window.localStorage;
 globalThis.HTMLElement = dom.window.HTMLElement;
+globalThis.SVGElement = dom.window.SVGElement;
 globalThis.Node = dom.window.Node;
 globalThis.getComputedStyle = dom.window.getComputedStyle;
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 globalThis.MutationObserver = dom.window.MutationObserver;
 globalThis.fetch = async () => new Response("{}", { status: 204 });
+globalThis.ResizeObserver = class {
+  constructor(callback) {
+    this.callback = callback;
+  }
+  observe(target) {
+    this.callback([{ target, contentRect: { width: 390, height: 440 } }]);
+  }
+  disconnect() {}
+};
 
 const assets = await readdir(resolve("docs/assets"));
 const bundle = assets.find((name) => name.startsWith("index-") && name.endsWith(".js"));
@@ -65,5 +75,27 @@ confirmButton.click();
 await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
 const saved = dom.window.localStorage.getItem("cutmind-story-os-v2");
 if (!saved?.includes("元叙事呼吸口")) throw new Error("Captured node was not persisted");
+
+const atlasButton = [...document.querySelectorAll("button")].find((button) =>
+  button.textContent?.includes("图谱"),
+);
+if (!atlasButton) throw new Error("Atlas navigation missing");
+atlasButton.click();
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 120));
+const galaxySvg = document.querySelector(".galaxy-viewport svg");
+if (!galaxySvg) throw new Error("Atlas galaxy missing");
+const branches = galaxySvg.querySelectorAll(".galaxy-node-branch");
+if (branches.length < 13) throw new Error("Atlas branches were not rendered");
+branches[0].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 90));
+const groups = galaxySvg.querySelectorAll(".galaxy-node-group");
+if (!groups.length) throw new Error("Atlas branch did not expand into groups");
+groups[0].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 90));
+const leaves = galaxySvg.querySelectorAll(".galaxy-node-node");
+if (!leaves.length) throw new Error("Atlas group did not expand into techniques");
+leaves[0].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 80));
+if (!document.querySelector(".node-sheet")) throw new Error("Node detail sheet missing");
 
 console.log(`SMOKE_OK ${bundle} chars=${text.length}`);
