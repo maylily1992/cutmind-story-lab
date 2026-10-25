@@ -100,10 +100,14 @@ const PROFILE_TRAITS = [
   { id: "performance", label: "表演捕捉", hint: "台词之外的真实行为" },
   { id: "audiovisual", label: "声画对位", hint: "声音是否参与论证" },
   { id: "offscreen", label: "画外想象", hint: "缺席与边缘的生产力" },
+  { id: "spatial", label: "空间构图", hint: "位置、边缘与空间权力" },
+  { id: "sound", label: "声音思维", hint: "声源、对位与听觉时间" },
   { id: "ellipsis", label: "省略胆量", hint: "删掉后仍保持方向感" },
   { id: "motif", label: "母题变形", hint: "重复是否发生意义变异" },
   { id: "risk", label: "语调冒险", hint: "能否承受混合与不适" },
   { id: "ending", label: "结尾开口", hint: "闭合多少，留下什么余震" },
+  { id: "audience", label: "观看契约", hint: "注意力、共谋与情绪路径" },
+  { id: "invention", label: "方法发明", hint: "把术语组合成个人工具" },
 ];
 
 const INITIAL_PROFILE = Object.fromEntries(PROFILE_TRAITS.map((trait) => [trait.id, 45]));

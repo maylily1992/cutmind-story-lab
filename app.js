@@ -9,6 +9,14 @@ const DEFAULT_STATE = {
     reference: null,
   },
   completedDays: {},
+  viewingNotes: [],
+  customNodes: [],
+  nodeActivity: {},
+  sprintStartDate: null,
+  atlasLayer: null,
+  atlasBranch: null,
+  atlasSearch: "",
+  activeNodeId: null,
   scanThreshold: 25,
   libraryDomain: "all",
   chatMessages: [],
@@ -29,6 +37,11 @@ const runtimeMedia = {
 };
 let scanJob = null;
 let chatBusy = false;
+
+if (!state.sprintStartDate) {
+  state.sprintStartDate = localDateKey();
+  saveState();
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -52,6 +65,9 @@ function loadState() {
       discussions: Array.isArray(saved.discussions) ? saved.discussions : [],
       chatMessages: Array.isArray(saved.chatMessages) ? saved.chatMessages : [],
       completedDays: saved.completedDays || {},
+      viewingNotes: Array.isArray(saved.viewingNotes) ? saved.viewingNotes : [],
+      customNodes: Array.isArray(saved.customNodes) ? saved.customNodes : [],
+      nodeActivity: saved.nodeActivity || {},
     };
   } catch {
     return clone(DEFAULT_STATE);
@@ -122,6 +138,49 @@ function rareCaseForDay() {
   return RARE_CASES[(epochDay() * 3 + state.insights.length) % RARE_CASES.length];
 }
 
+function currentSprintDay() {
+  if (!state.sprintStartDate) return 1;
+  const start = new Date(`${state.sprintStartDate}T00:00:00`);
+  const now = new Date();
+  const diff = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - start) / 86400000);
+  return Math.min(28, Math.max(1, diff + 1));
+}
+
+function todayAtlasNodes() {
+  const sprint = currentSprintDay();
+  const selected = [];
+  const groups = [...ATLAS_GROUPS];
+  for (let index = 0; index < 10; index += 1) {
+    const group = groups[(sprint * 3 + index * 4) % groups.length];
+    const candidates = allAtlasNodes().filter((node) => node.group === group.id);
+    const node = candidates[(sprint + index * 2) % Math.max(1, candidates.length)];
+    if (node && !selected.some((item) => item.id === node.id)) selected.push(node);
+  }
+  let cursor = 0;
+  while (selected.length < 10 && cursor < allAtlasNodes().length) {
+    const node = allAtlasNodes()[(sprint * 7 + cursor) % allAtlasNodes().length];
+    if (!selected.some((item) => item.id === node.id)) selected.push(node);
+    cursor += 1;
+  }
+  return selected;
+}
+
+function allAtlasNodes() {
+  return [...ATLAS_NODES, ...(state.customNodes || [])];
+}
+
+function nodeById(id) {
+  return allAtlasNodes().find((node) => node.id === id);
+}
+
+function DOMAIN_NAME(branchId) {
+  return ATLAS_BRANCHES.find((branch) => branch.id === branchId)?.label || "个人节点";
+}
+
+function todayMaster() {
+  return MASTER_ATLAS[(currentSprintDay() - 1) % MASTER_ATLAS.length];
+}
+
 function profileEntries() {
   return PROFILE_TRAITS.map((trait) => ({ ...trait, score: state.profile[trait.id] ?? 45 })).sort((a, b) => a.score - b.score);
 }
@@ -136,6 +195,9 @@ function futureSelfLine() {
 function renderHome() {
   const techniques = techniquesForDay();
   const rare = rareCaseForDay();
+  const sprint = SPRINT_28[currentSprintDay() - 1];
+  const master = todayMaster();
+  const dailyNodes = todayAtlasNodes();
   const completed = Boolean(state.completedDays[localDateKey()]);
   return `<div class="page">
     <p class="eyebrow">DAILY CUT LAB · ${escapeHtml(dateLabel())}</p>
@@ -143,14 +205,37 @@ function renderHome() {
     <p class="page-lead">今天不是学更多技巧，而是找到一种能改变信息、关系或时间的操作。五张牌，一个异闻，一个可以今天就剪的缝。</p>
 
     <section class="day-hero">
-      <div class="hero-top"><code>FRAME ${String(epochDay()).slice(-4)}</code><span>${completed ? "今日已沉淀" : "第 " + Object.keys(state.completedDays).length + " 次训练"}</span></div>
-      <h1>${escapeHtml(futureSelfLine().split("；")[0])}</h1>
-      <p>${escapeHtml(techniques.map((item) => item.title).join(" × "))}</p>
+      <div class="hero-top"><code>SPRINT ${String(currentSprintDay()).padStart(2, "0")} / 28</code><span>${completed ? "今日已沉淀" : `${ATLAS_NODES.length} 术语节点 · ${MASTER_ATLAS.length} 位大师`}</span></div>
+      <h1>${escapeHtml(sprint.title)}</h1>
+      <p>${escapeHtml(sprint.goal)}</p>
       <div class="hero-actions">
         <button class="button" type="button" data-action="complete-day">${completed ? "今天再想一次" : "沉淀今日练习"} ${icon(completed ? "arrow" : "check")}</button>
-        <button class="button ghost small" type="button" data-action="open-library">技巧库</button>
+        <button class="button ghost small" type="button" data-route="atlas">打开图谱</button>
       </div>
     </section>
+
+    <div class="protocol-strip">
+      <span><b>10</b>术语</span><span><b>5</b>深技巧</span><span><b>1</b>大师</span><span><b>1</b>异闻</span><span><b>1</b>实验</span>
+    </div>
+
+    <div class="section-head"><h2>今日十词</h2><button type="button" data-route="atlas">进入全图谱 ${icon("arrow")}</button></div>
+    <div class="dense-term-grid">
+      ${dailyNodes.map((node) => `<button class="dense-term" type="button" data-action="open-node" data-node="${node.id}">
+        <span>${escapeHtml(DOMAIN_NAME(node.branch))}</span>
+        <b>${escapeHtml(node.zh)}</b>
+        <small>${escapeHtml(node.en)}</small>
+        <p>${escapeHtml(node.def)}</p>
+      </button>`).join("")}
+    </div>
+
+    <div class="section-head"><h2>大师决策</h2><p>${escapeHtml(master.region)} · ${escapeHtml(master.role)}</p></div>
+    <article class="master-card">
+      <span class="rare-type">MASTER / ${escapeHtml(master.region)}</span>
+      <h3>${escapeHtml(master.name)}</h3>
+      <p class="master-signature">${escapeHtml(master.signature)}</p>
+      <p>${escapeHtml(master.case)}</p>
+      <div class="master-methods">${master.methods.map((id) => `<span>${escapeHtml(nodeById(id)?.zh || id)}</span>`).join("")}</div>
+    </article>
 
     <div class="section-head"><h2>今日五张牌</h2><p>结构 / 信息 / 剪辑 / 画面 / 声音</p></div>
     <div class="technique-list">
@@ -170,7 +255,7 @@ function renderHome() {
 
     <div class="seam-card">
       <h3>今天最小的那道缝</h3>
-      <p>选今天任意一张牌，在现有素材中只改变一个变量，剪出 15–30 秒。不要做完整作品，只验证“观众是否因为我改变的那一刀，重新理解此前画面”。</p>
+      <p>${escapeHtml(sprint.lab)} 不要做完整作品，只验证“观众是否因为我改变的那一刀，重新理解此前画面”。</p>
     </div>
 
     <div class="section-head"><h2>今日策略</h2><p>由当前画像给出</p></div>
@@ -395,6 +480,487 @@ function chatMessage(message) {
   </div>`;
 }
 
+function renderAtlas() {
+  const selectedBranch = state.atlasBranch;
+  const selectedLayer = state.atlasLayer;
+  const countNotes = state.viewingNotes.length;
+  return `<div class="page">
+    <p class="eyebrow">STORY & CUT ATLAS · ${ATLAS_NODES.length + state.customNodes.length} NODES</p>
+    <h1 class="page-title">一张会生长的<br />故事操作地图。</h1>
+    <p class="page-lead">从叙事本体到声音与元系统，按根类、分支、簇、操作节点组织。点选星群进入分支，也可以把每次观影观察直接接入某个节点，或让它长成你的新术语。</p>
+
+    <section class="five-layer-key">
+      <div class="five-layer-title"><b>五层故事操作系统</b><span>不是术语目录，而是五类可操作的问题</span></div>
+      ${ATLAS_LAYERS.map((layer) => `<button class="${selectedLayer === layer.id ? "is-selected" : ""}" type="button" data-action="filter-atlas-layer" data-layer="${layer.id}">
+        <b>${escapeHtml(layer.label)}</b>
+        <span>${escapeHtml(layer.longLabel)}</span>
+        <small>${escapeHtml(layer.question)}</small>
+      </button>`).join("")}
+    </section>
+
+    <section class="atlas-overview">
+      <div class="atlas-canvas-wrap">
+        <canvas id="atlas-canvas" aria-label="故事与剪辑术语图谱"></canvas>
+        <div class="atlas-center-mark">ATLAS</div>
+      </div>
+      <div class="atlas-caption"><span>${ATLAS_LAYERS.length} 个总层</span><span>${ATLAS_BRANCHES.length} 个分支 · ${ATLAS_GROUPS.length} 簇</span><span>${ATLAS_NODES.length + state.customNodes.length} 节点</span></div>
+    </section>
+
+    <div class="atlas-outline">
+      ${ATLAS_LAYERS.map((layer) => `<article>
+        <span style="color:${layer.color}">${escapeHtml(layer.label)}</span>
+        <div><b>${escapeHtml(layer.longLabel)}</b><p>${layer.branches.map((id) => escapeHtml(ATLAS_BRANCHES.find((branch) => branch.id === id)?.label || id)).join(" · ")}</p></div>
+        <small>${ATLAS_NODES.filter((node) => layer.branches.includes(node.branch)).length}</small>
+      </article>`).join("")}
+    </div>
+
+    <div class="atlas-controls">
+      <input class="field" id="atlas-search" value="${escapeHtml(state.atlasSearch)}" placeholder="搜索：叙述性诡计、缝合、声画对位…" />
+      <div class="library-filters">
+        <button class="${!selectedBranch ? "is-selected" : ""}" type="button" data-action="filter-atlas" data-branch="">全部</button>
+        ${ATLAS_BRANCHES
+          .filter((branch) => !selectedLayer || ATLAS_LAYERS.find((layer) => layer.id === selectedLayer)?.branches.includes(branch.id))
+          .map((branch) => `<button class="${selectedBranch === branch.id ? "is-selected" : ""}" type="button" data-action="filter-atlas" data-branch="${branch.id}">${escapeHtml(branch.label)}</button>`)
+          .join("")}
+      </div>
+    </div>
+    <div id="atlas-results">${renderAtlasResults()}</div>
+
+    <div class="section-head"><h2>观影入库</h2><p>让每次观看都成为树上的证据</p></div>
+    <section class="watch-entry">
+      <div class="form-grid">
+        <input class="field" id="watch-film" placeholder="片名 / 作品名" />
+        <input class="field" id="watch-time" placeholder="时间点，如 00:18:42" />
+      </div>
+      <label class="field-label">你观察到的具体做法</label>
+      <textarea class="field" id="watch-observation" placeholder="不要只写“节奏很好”。写下画面、声音或剪点怎样改变了信息、关系或时间。"></textarea>
+      <label class="field-label">如果你发明了一个新术语，可写在这里</label>
+      <input class="field" id="watch-new-term" placeholder="可选，例如：延迟反应的空位回声" />
+      <button class="button" type="button" data-action="save-watch-note">${icon("brain")} 智能归类并放入技能树</button>
+      <p class="api-warning">有模型接口时使用 AI 归类；离线时使用术语关键词、定义与分支权重进行本地匹配。原始视频不会上传。</p>
+    </section>
+
+    <div class="section-head"><h2>最近入库</h2><p>${countNotes} 条</p></div>
+    <div class="insight-list">
+      ${
+        countNotes
+          ? state.viewingNotes
+              .slice()
+              .reverse()
+              .slice(0, 12)
+              .map((note) => `<article class="watch-note">
+                <div class="watch-note-top"><b>${escapeHtml(note.film || "未命名观看")}</b><span>${escapeHtml(note.timecode || "无时间点")}</span></div>
+                <p>${escapeHtml(note.observation)}</p>
+                <div class="watch-note-link">→ ${escapeHtml(nodeById(note.nodeId)?.zh || note.newTerm || "待归类节点")}</div>
+              </article>`)
+              .join("")
+          : `<div class="empty-state">还没有观影证据。下一次看到一个“拍案叫绝”的剪点，就把那 3 秒变成树上的一片叶子。</div>`
+      }
+    </div>
+
+    <div class="section-head"><h2>大师方法索引</h2><p>${MASTER_ATLAS.length} 位创作者 / 剪辑师 / 理论家</p></div>
+    <div class="master-archive">
+      ${MASTER_ATLAS.map((master, index) => `<details class="master-entry">
+        <summary><span>${String(index + 1).padStart(2, "0")}</span><b>${escapeHtml(master.name)}</b><small>${escapeHtml(master.region)} · ${escapeHtml(master.role)}</small></summary>
+        <p>${escapeHtml(master.signature)}</p>
+        <div class="master-methods">${master.methods.map((id) => `<button type="button" data-action="jump-node" data-node="${id}">${escapeHtml(nodeById(id)?.zh || id)}</button>`).join("")}</div>
+        <small class="master-caution">${escapeHtml(master.case)}</small>
+      </details>`).join("")}
+    </div>
+    <div class="section-head"><h2>理论底图</h2><p>术语与方法的来源索引</p></div>
+    <div class="source-list">
+      ${SOURCE_REGISTRY.map((source) => `<article>
+        <b>${escapeHtml(source.title)}</b>
+        <span>${escapeHtml(source.author)} · ${escapeHtml(source.area)}</span>
+        <small>${escapeHtml(source.status)}</small>
+      </article>`).join("")}
+    </div>
+    <p class="page-lead">本版知识树先由叙事学、电影理论、剪辑师方法与新媒体理论交叉整理。当前运行环境无法访问外网，因此所有需要版本、页码、访谈原文或网络链接的条目均标为“待核验”，不以虚构引用补齐。</p>
+  </div>`;
+}
+
+function renderAtlasResults() {
+  const query = state.atlasSearch.trim().toLowerCase();
+  const branch = state.atlasBranch;
+  const layer = ATLAS_LAYERS.find((item) => item.id === state.atlasLayer);
+  let nodes = allAtlasNodes();
+  if (layer) nodes = nodes.filter((node) => layer.branches.includes(node.branch));
+  if (branch) nodes = nodes.filter((node) => node.branch === branch);
+  if (query) {
+    nodes = nodes.filter((node) =>
+      `${node.zh} ${node.en} ${node.def}`.toLowerCase().includes(query),
+    );
+  }
+  const grouped = new Map();
+  nodes.forEach((node) => {
+    if (!grouped.has(node.group)) grouped.set(node.group, []);
+    grouped.get(node.group).push(node);
+  });
+  return `<div class="atlas-node-groups">
+    ${
+      grouped.size
+        ? [...grouped.entries()]
+            .map(([groupId, list]) => {
+              const group = ATLAS_GROUPS.find((item) => item.id === groupId);
+              return `<section class="atlas-group">
+                <div class="atlas-group-head"><span>${escapeHtml(DOMAIN_NAME(list[0].branch))}</span><b>${escapeHtml(group?.label || "个人集群")}</b><small>${list.length} 节点</small></div>
+                <div class="atlas-node-list">${list.map(atlasNodeCard).join("")}</div>
+              </section>`;
+            })
+            .join("")
+        : `<div class="empty-state">没有匹配术语。你可以直接在下方写下一个新词，让它成为个人节点。</div>`
+    }
+  </div>`;
+}
+
+function atlasNodeCard(node) {
+  const notes = state.viewingNotes.filter((note) => note.nodeId === node.id);
+  return `<button class="atlas-node-card ${node.status === "personal" ? "personal" : ""}" type="button" data-action="open-node" data-node="${node.id}">
+    <div class="atlas-node-top"><span>${escapeHtml(node.en)}</span><i>${"●".repeat(Math.max(1, Math.min(5, node.rarity || 3)))}</i></div>
+    <b>${escapeHtml(node.zh)}</b>
+    <p>${escapeHtml(node.def)}</p>
+    <div class="atlas-node-foot">
+      <span>${node.links?.length || 0} 条关系</span>
+      <span>${notes.length} 条我的证据</span>
+    </div>
+  </button>`;
+}
+
+function drawAtlasMap() {
+  const canvas = document.getElementById("atlas-canvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(320, rect.width);
+  const height = 420;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.height = `${height}px`;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+  const center = { x: width / 2, y: height / 2 };
+  const orderedBranches = ATLAS_LAYERS.flatMap((layer) =>
+    layer.branches.map((id) => ATLAS_BRANCHES.find((branch) => branch.id === id)).filter(Boolean),
+  );
+  const branchRadius = Math.min(width * 0.25, 104);
+  const positions = orderedBranches.map((branch, index) => {
+    const angle = -Math.PI / 2 + (index / orderedBranches.length) * Math.PI * 2;
+    return {
+      branch,
+      angle,
+      x: center.x + Math.cos(angle) * branchRadius,
+      y: center.y + Math.sin(angle) * branchRadius,
+      r: 11 + Math.min(4, Math.round(ATLAS_NODES.filter((node) => node.branch === branch.id).length / 7)),
+    };
+  });
+
+  ctx.strokeStyle = "rgba(216,162,74,.14)";
+  ctx.lineWidth = 0.8;
+  positions.forEach((item) => {
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(item.x, item.y);
+    ctx.stroke();
+  });
+
+  const groupPositions = [];
+  positions.forEach((item) => {
+    const groups = ATLAS_GROUPS.filter((group) => group.branch === item.branch.id);
+    groups.forEach((group, index) => {
+      const offset = (index - (groups.length - 1) / 2) * 0.075;
+      const angle = item.angle + offset;
+      const outerRadius = Math.min(width * 0.405, 165);
+      const x = center.x + Math.cos(angle) * outerRadius;
+      const y = center.y + Math.sin(angle) * outerRadius;
+      const selected = state.atlasBranch === item.branch.id;
+      ctx.strokeStyle = selected ? `${item.branch.color}88` : "rgba(180,190,185,.11)";
+      ctx.lineWidth = selected ? 1.1 : 0.6;
+      ctx.beginPath();
+      ctx.moveTo(item.x, item.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.fillStyle = selected ? item.branch.color : "rgba(150,160,155,.42)";
+      ctx.beginPath();
+      ctx.arc(x, y, selected ? 3.4 : 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      groupPositions.push({ branch: item.branch.id, x, y, group });
+    });
+  });
+
+  ctx.fillStyle = "#171a1c";
+  ctx.strokeStyle = "#d8a24a";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  positions.forEach((item) => {
+    const selected = state.atlasBranch === item.branch.id;
+    const layerSelected = !state.atlasLayer || ATLAS_LAYERS.find((layer) => layer.id === state.atlasLayer)?.branches.includes(item.branch.id);
+    ctx.fillStyle = selected ? item.branch.color : "rgba(20,23,25,.94)";
+    ctx.strokeStyle = layerSelected ? item.branch.color : "rgba(100,105,102,.32)";
+    ctx.lineWidth = selected ? 3 : 1;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = selected ? "#111315" : "#c7c9c3";
+    ctx.font = "7.5px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(item.branch.label, item.x, item.y);
+  });
+  ctx.fillStyle = "#d8a24a";
+  ctx.font = "7px SFMono-Regular, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("STORY", center.x, center.y - 4);
+  ctx.fillText("OS", center.x, center.y + 5);
+
+  canvas.onclick = (event) => {
+    const box = canvas.getBoundingClientRect();
+    const x = event.clientX - box.left;
+    const y = event.clientY - box.top;
+    let picked = null;
+    let distance = Infinity;
+    for (const item of [...positions, ...groupPositions]) {
+      const d = Math.hypot(x - item.x, y - item.y);
+      const hitRadius = item.r ? item.r + 14 : 12;
+      if (d < hitRadius && d < distance) {
+        picked = item.branch;
+        distance = d;
+      }
+    }
+    if (picked) {
+      state.atlasBranch = state.atlasBranch === picked ? null : picked;
+      state.atlasLayer = ATLAS_LAYERS.find((layer) => layer.branches.includes(picked))?.id || null;
+      render();
+    }
+  };
+}
+
+function classifyObservation(observation, title = "") {
+  const text = `${title} ${observation}`.toLowerCase();
+  const hints = [
+    { words: ["叙述性诡计", "不可靠", "骗子", "误导", "真相"], ids: ["i10", "n12", "i12"] },
+    { words: ["元叙事", "第四堵墙", "自反", "虚构", "越界"], ids: ["m01", "m05", "m03", "m17"] },
+    { words: ["同构", "套层", "内外层", "对称"], ids: ["a11", "m02", "a15"] },
+    { words: ["声音", "声画", "静音", "对位", "底噪"], ids: ["s06", "s09", "s12"] },
+    { words: ["剪辑", "切点", "跳切", "蒙太奇", "转场"], ids: ["e09", "e12", "e03"] },
+    { words: ["构图", "画框", "边缘", "景深", "焦点"], ids: ["im02", "im04", "im08"] },
+    { words: ["时间", "闪回", "闪前", "循环", "倒叙"], ids: ["t06", "t07", "t04"] },
+    { words: ["空间", "建筑", "门", "走廊", "地图"], ids: ["sp03", "sp08", "sp12"] },
+    { words: ["欲望", "人物", "角色", "反派"], ids: ["c01", "c10", "c06"] },
+    { words: ["观众", "共情", "悬念", "惊奇", "不适"], ids: ["af01", "af04", "af09"] },
+  ];
+  for (const hint of hints) {
+    if (hint.words.some((word) => text.includes(word))) {
+      const node = nodeById(hint.ids[0]);
+      if (node) return { node, branch: node.branch, reason: `命中关键词：${hint.words.find((word) => text.includes(word))}` };
+    }
+  }
+  let best = null;
+  let bestScore = 0;
+  allAtlasNodes().forEach((node) => {
+    let score = 0;
+    if (text.includes(node.zh.toLowerCase())) score += 12;
+    if (node.en && text.includes(node.en.toLowerCase())) score += 10;
+    for (const word of node.zh.split(/[\s/、·]+/)) {
+      if (word.length >= 2 && text.includes(word.toLowerCase())) score += 2;
+    }
+    if (score > bestScore) {
+      best = node;
+      bestScore = score;
+    }
+  });
+  if (best) return { node: best, branch: best.branch, reason: `术语匹配度 ${bestScore}` };
+  const fallback = nodeById("m01");
+  return { node: fallback, branch: "meta", reason: "未找到精确节点，默认归入元叙事与媒介以待确认" };
+}
+
+async function aiClassifyObservation(film, observation) {
+  if (!state.ai.endpoint || !state.ai.model) return null;
+  const candidates = allAtlasNodes().map((node) => `${node.id}|${node.zh}|${node.en}`).join("\n");
+  try {
+    const response = await fetch(state.ai.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(state.ai.key ? { Authorization: `Bearer ${state.ai.key}` } : {}),
+      },
+      body: JSON.stringify({
+        model: state.ai.model,
+        messages: [
+          {
+            role: "system",
+            content: "你是故事与剪辑术语分类器。只能选择一个给定节点 id，或返回 nodeId:null。只输出 JSON：{\"nodeId\":\"...\"|\"null\",\"branch\":\"...\",\"reason\":\"...\"}。不要发明已有节点 id。",
+          },
+          { role: "user", content: `作品：${film}\n观察：${observation}\n候选：\n${candidates}` },
+        ],
+        temperature: 0.1,
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || data?.output_text || "";
+    const json = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || content);
+    const node = json.nodeId && json.nodeId !== "null" ? nodeById(json.nodeId) : null;
+    return node ? { node, branch: node.branch, reason: json.reason || "AI 归类" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveWatchNote() {
+  const film = document.getElementById("watch-film")?.value.trim();
+  const timecode = document.getElementById("watch-time")?.value.trim();
+  const observation = document.getElementById("watch-observation")?.value.trim();
+  const newTerm = document.getElementById("watch-new-term")?.value.trim();
+  if (!film || !observation) {
+    showToast("至少写片名和具体观察。");
+    return;
+  }
+  showToast("正在归类到技能树…");
+  const local = classifyObservation(observation);
+  const classified = (await aiClassifyObservation(film, observation)) || local;
+  let node = classified.node;
+  if (newTerm) {
+    node = {
+      id: `custom-${Date.now()}`,
+      branch: classified.branch,
+      group: node?.group || ATLAS_GROUPS.find((group) => group.branch === classified.branch)?.id,
+      zh: newTerm,
+      en: "personal term",
+      def: observation.slice(0, 120),
+      rarity: 5,
+      links: classified.node ? [classified.node.id] : [],
+      status: "personal",
+    };
+    state.customNodes.push(node);
+  }
+  state.viewingNotes.push({
+    id: newId(),
+    film,
+    timecode,
+    observation,
+    nodeId: node.id,
+    newTerm: newTerm || "",
+    reason: classified.reason,
+    date: localDateKey(),
+  });
+  state.nodeActivity[node.id] = (state.nodeActivity[node.id] || 0) + 1;
+  const category = branchToProfile(node.branch);
+  state.insights.push({
+    id: newId(),
+    title: `观影证据 · ${film}`,
+    body: observation.slice(0, 220),
+    category,
+    evidence: `${film} ${timecode}`,
+    date: localDateKey(),
+    source: "viewing",
+  });
+  updateTrait(category);
+  state.atlasBranch = node.branch;
+  state.atlasSearch = "";
+  saveState();
+  render();
+  showToast(`已归入「${node.zh}」，并写进个人画像。`);
+}
+
+function branchToProfile(branch) {
+  return {
+    narr: "rhyme",
+    arch: "rhyme",
+    info: "information",
+    char: "performance",
+    time: "time",
+    space: "spatial",
+    edit: "ellipsis",
+    image: "pov",
+    sound: "sound",
+    perf: "performance",
+    meta: "reflexivity",
+    affect: "audience",
+    craft: "invention",
+  }[branch] || "invention";
+}
+
+const BRANCH_DETAIL_SCENES = {
+  narr: { scene: "一场看似普通的家庭晚餐", transfer: "把同一事件分别写成事实清单、人物经历和最终叙述，比较三者漏掉了什么。", misuse: "把所有形式变化都解释成“叙事复杂”。" },
+  arch: { scene: "三个发生在同一栋楼里的事件", transfer: "先排出一个可理解的整体，再替换一个结构位置，观察观众对因果和责任的判断如何变化。", misuse: "只把结构当模板套用，不回答结构为何而存在。" },
+  info: { scene: "一封在三个角色手里传递的信", transfer: "只改变观众知道这封信内容的时间，不改变事件本身。", misuse: "隐瞒作者没有能力公平提供的信息。" },
+  char: { scene: "一个人在门口等待另一个人出现", transfer: "把人物的欲望写成一个动作，把阻力写进同一个空间，不靠旁白解释。", misuse: "把人物写成主题的代言人。" },
+  time: { scene: "同一条街上相隔十年的两次相遇", transfer: "固定事件事实，只改变顺序、时长或重复频率，记录观众对责任归属的变化。", misuse: "把时间花招当因果解释。" },
+  space: { scene: "只能从内部打开的玻璃门", transfer: "让空间的门槛、中心和边缘承担一场权力变化，删除解释性对白。", misuse: "空间只当漂亮背景，不参与行动。" },
+  edit: { scene: "一个人关上门后，房间里的声音仍然继续", transfer: "重剪同一素材十次，每次只移动一个切点，记录观众信息模型在哪一次变化。", misuse: "用一个炫技转场替代镜头之间的关系论证。" },
+  image: { scene: "前景说话的人始终清晰，背景的关键动作始终模糊", transfer: "用焦点、边缘或画中画让观众先看错对象，再让新信息重写画面。", misuse: "画面漂亮但没有任何角色需要为看到或没看到承担后果。" },
+  sound: { scene: "画面在白天，环境声却来自夜晚的海边", transfer: "先只用声音建立世界，再用画面修正它；至少要有一个角色听见同一差异。", misuse: "声音只负责制造气氛，不参与事实和关系。" },
+  perf: { scene: "角色说“没事”时，手一直擦一只已经干净的杯子", transfer: "删掉最明显的情绪反应，只保留身体动作和它与空间的关系。", misuse: "把去表演化误当作无信息的面无表情。" },
+  meta: { scene: "角色发现自己正在被记录，但生活必须继续", transfer: "让自反暴露后的世界留下一个永久变化，并让之后的沉浸付出代价。", misuse: "打破虚构后取消所有后果。" },
+  affect: { scene: "观众知道餐桌上的汤有毒，角色们却仍在客气地让菜", transfer: "只改变观众知道什么，不改变角色行为，测量礼貌如何变成共谋。", misuse: "把情绪强度误当作叙事意义。" },
+  craft: { scene: "同一条三分钟素材，用两条互相冲突的规则剪成两版", transfer: "设定一条约束，再故意违反一次，记录违反是否产生了可解释的新意义。", misuse: "用理论名称替代实际选择。" },
+};
+
+function nodeLesson(node) {
+  const override = NODE_DETAILS[node.id] || {};
+  const related = (node.links || []).map(nodeById).filter(Boolean);
+  const relatedNames = related.map((item) => item.zh).join("、") || "相邻操作";
+  const fallback = BRANCH_DETAIL_SCENES[node.branch] || BRANCH_DETAIL_SCENES.craft;
+  return {
+    analysis: override.analysis || `${node.def} 它的专业价值不在名称，而在它改变了观众如何组织信息。把「${node.zh}」和「${relatedNames}」并置时，要追问：哪一项预期被建立，哪一个变量被改变，观众又在何时意识到旧解释不再成立。`,
+    example: override.example || `在${fallback.scene}里，先建立「${relatedNames}」的常规关系，再让「${node.zh}」只改变其中一个参数。不要立刻解释，让观众先根据旧模型行动，下一次事件再迫使他们修正。`,
+    transfer: override.transfer || fallback.transfer,
+    misuse: override.misuse || fallback.misuse,
+  };
+}
+
+function renderNodeDetail() {
+  const node = nodeById(state.activeNodeId);
+  if (!node) return renderAtlas();
+  const branch = ATLAS_BRANCHES.find((item) => item.id === node.branch);
+  const group = ATLAS_GROUPS.find((item) => item.id === node.group);
+  const lesson = nodeLesson(node);
+  const related = (node.links || []).map(nodeById).filter(Boolean);
+  const masters = MASTER_ATLAS.filter((master) => master.methods.includes(node.id));
+  const notes = state.viewingNotes.filter((note) => note.nodeId === node.id);
+  return `<div class="page node-detail-page">
+    <button class="node-back" type="button" data-action="back-atlas">${icon("arrow")} 返回故事技术图谱</button>
+    <p class="eyebrow">${escapeHtml(branch?.label || "个人节点")} / ${escapeHtml(group?.label || "自定义簇")}</p>
+    <h1 class="page-title">${escapeHtml(node.zh)}</h1>
+    <p class="node-en">${escapeHtml(node.en)} · 稀有度 ${"●".repeat(Math.max(1, Math.min(5, node.rarity || 3)))}</p>
+    <p class="page-lead">${escapeHtml(node.def)}</p>
+
+    <div class="node-principle">
+      <small>一句话心法</small>
+      <p>${escapeHtml(lesson.analysis)}</p>
+    </div>
+
+    <div class="section-head"><h2>拆开看</h2><p>机制 → 案例 → 迁移</p></div>
+    <article class="node-lesson-card"><small>底层机制</small><p>${escapeHtml(lesson.analysis)}</p></article>
+    <article class="node-lesson-card"><small>具体案例</small><p>${escapeHtml(lesson.example)}</p></article>
+    <article class="node-lesson-card"><small>迁移到剪辑</small><p>${escapeHtml(lesson.transfer)}</p></article>
+    <article class="node-lesson-card misuse"><small>失效条件</small><p>${escapeHtml(lesson.misuse)}</p></article>
+
+    <div class="section-head"><h2>关系生长</h2><p>${related.length} 条相邻操作</p></div>
+    <div class="node-links">
+      ${related.length ? related.map((item) => `<button type="button" data-action="open-node" data-node="${item.id}"><span>${escapeHtml(DOMAINS[item.branch]?.name || DOMAIN_NAME(item.branch))}</span><b>${escapeHtml(item.zh)}</b><small>${escapeHtml(item.en)}</small></button>`).join("") : `<div class="empty-state">这个节点还没有显式连接，适合用来发明新的关系。</div>`}
+    </div>
+
+    <div class="section-head"><h2>大师方法</h2><p>${masters.length} 位相关创作者</p></div>
+    <div class="master-archive">
+      ${masters.length ? masters.map((master) => `<details class="master-entry"><summary><span>${escapeHtml(master.region.slice(0, 1))}</span><b>${escapeHtml(master.name)}</b><small>${escapeHtml(master.role)}</small></summary><p>${escapeHtml(master.signature)}</p><small class="master-caution">${escapeHtml(master.case)}</small></details>`).join("") : `<div class="empty-state">没有大师被固定绑定到这里。把术语放回你的观看经验，比依赖名人背书更重要。</div>`}
+    </div>
+
+    <div class="section-head"><h2>我的观影证据</h2><p>${notes.length} 条</p></div>
+    <div class="insight-list">
+      ${notes.length ? notes.map((note) => `<article class="watch-note"><div class="watch-note-top"><b>${escapeHtml(note.film)}</b><span>${escapeHtml(note.timecode || "无时间点")}</span></div><p>${escapeHtml(note.observation)}</p></article>`).join("") : `<div class="empty-state">还没有把观影观察挂到这个节点。下一次看到它真正生效的瞬间，再回来留下证据。</div>`}
+    </div>
+
+    <button class="button" type="button" data-action="add-node-experiment" data-node="${node.id}" style="margin-top:18px">${icon("check")} 将它设为我今天的实验</button>
+  </div>`;
+}
+
 function renderProfile() {
   const entries = profileEntries();
   const sortedDesc = entries.slice().reverse();
@@ -408,7 +974,7 @@ function renderProfile() {
       <h2>${escapeHtml(futureSelfLine())}</h2>
       <p>这不是预测，而是最近发展区。未来自我必须能被一次具体剪辑实验验证，不能只是“变得更厉害”。</p>
     </section>
-    <div class="section-head"><h2>能力信号</h2><button type="button" data-action="open-library">技巧档案 ${icon("arrow")}</button></div>
+    <div class="section-head"><h2>能力信号</h2><button type="button" data-action="open-library">故事技术图谱 ${icon("arrow")}</button></div>
     <section class="trait-list">
       ${entries.map((trait) => `<div class="trait-row">
         <div class="trait-label"><b>${escapeHtml(trait.label)}</b><small>${escapeHtml(trait.hint)}</small></div>
@@ -469,12 +1035,17 @@ function render() {
   const main = document.getElementById("main-content");
   header.hidden = false;
   nav.hidden = false;
-  document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("is-active", item.dataset.route === route));
-  if (route === "lab") main.innerHTML = renderLab();
+  document.querySelectorAll(".nav-item").forEach((item) =>
+    item.classList.toggle("is-active", item.dataset.route === route || (route === "node" && item.dataset.route === "atlas")),
+  );
+  if (route === "node") main.innerHTML = renderNodeDetail();
+  else if (route === "atlas") main.innerHTML = renderAtlas();
+  else if (route === "lab") main.innerHTML = renderLab();
   else if (route === "dialogue") main.innerHTML = renderDialogue();
   else if (route === "profile") main.innerHTML = renderProfile();
   else if (route === "library") main.innerHTML = renderLibrary();
   else main.innerHTML = renderHome();
+  if (route === "atlas") window.requestAnimationFrame(drawAtlasMap);
 }
 
 function setRoute(nextRoute) {
@@ -725,6 +1296,8 @@ ${PROFILE_TRAITS.map((trait) => `- ${trait.label}: ${state.profile[trait.id] || 
 当前弱项：${sorted.slice(0, 2).map((item) => item.label).join("、")}
 当前强项：${sorted.slice(-1)[0].label}
 今日五个技巧：${today.map((item) => `${item.title}（${item.mechanism}）`).join("；")}
+今日图谱术语：${todayAtlasNodes().map((node) => `${node.zh}/${node.en}`).join("；")}
+最近观影证据：${state.viewingNotes.slice(-6).map((note) => `${note.film} ${note.timecode || ""}: ${note.observation}`).join("；") || "暂无"}
 作品指标：${JSON.stringify({ mine: state.works.mine?.metrics || null, reference: state.works.reference?.metrics || null })}
 最近规则：${state.insights.slice(-8).map((item) => item.title).join("；") || "暂无"}
 
@@ -900,7 +1473,55 @@ document.addEventListener("click", (event) => {
   if (!target) return;
   const action = target.dataset.action;
   if (action === "complete-day") completeDay();
-  if (action === "open-library") setRoute("library");
+  if (action === "open-library") setRoute("atlas");
+  if (action === "filter-atlas-layer") {
+    state.atlasLayer = state.atlasLayer === target.dataset.layer ? null : target.dataset.layer;
+    state.atlasBranch = null;
+    saveState();
+    render();
+  }
+  if (action === "filter-atlas") {
+    state.atlasBranch = target.dataset.branch || null;
+    if (state.atlasBranch) {
+      state.atlasLayer = ATLAS_LAYERS.find((layer) => layer.branches.includes(state.atlasBranch))?.id || null;
+    }
+    saveState();
+    render();
+  }
+  if (action === "save-watch-note") saveWatchNote();
+  if (action === "open-node") {
+    state.activeNodeId = target.dataset.node;
+    setRoute("node");
+  }
+  if (action === "back-atlas") setRoute("atlas");
+  if (action === "add-node-experiment") {
+    const node = nodeById(target.dataset.node);
+    if (node) {
+      const category = branchToProfile(node.branch);
+      state.insights.push({
+        id: newId(),
+        title: `今日实验 · ${node.zh}`,
+        body: nodeLesson(node).transfer,
+        category,
+        evidence: "故事技术图谱",
+        date: localDateKey(),
+        source: "atlas",
+      });
+      updateTrait(category);
+      saveState();
+      showToast(`「${node.zh}」已设为你今天的实验。`);
+    }
+  }
+  if (action === "jump-node") {
+    const node = nodeById(target.dataset.node);
+    if (node) {
+      state.atlasBranch = node.branch;
+      state.atlasSearch = node.zh;
+      state.activeNodeId = node.id;
+      saveState();
+      setRoute("node");
+    }
+  }
   if (action === "filter-library") {
     state.libraryDomain = target.dataset.domain;
     saveState();
@@ -931,6 +1552,18 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-video-input]")) {
     importVideo(event.target.dataset.videoInput, event.target.files?.[0]);
+  }
+});
+
+let atlasSearchTimer = null;
+document.addEventListener("input", (event) => {
+  if (event.target.id === "atlas-search") {
+    state.atlasSearch = event.target.value;
+    window.clearTimeout(atlasSearchTimer);
+    atlasSearchTimer = window.setTimeout(() => {
+      const results = document.getElementById("atlas-results");
+      if (results) results.innerHTML = renderAtlasResults();
+    }, 180);
   }
 });
 
