@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#111315" />
     <meta
       name="description"
-      content="切面：作品驱动的故事与剪辑思维实验室。比较版本、分析镜头节奏、保存讨论并持续更新创作画像。"
+      content="切面：作品驱动的私人叙事操作系统。"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,50 +14,10 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" sizes="180x180" href="./app-icon-180.png" />
-    <link rel="stylesheet" href="./styles.css" />
-    <title>切面 · 故事与剪辑思维实验室</title>
+    <title>切面 · 私人叙事操作系统</title>
   </head>
   <body>
-    <div class="film-grain" aria-hidden="true"></div>
-    <div class="app-shell">
-      <header class="topbar" id="app-header">
-        <button class="brand" type="button" data-route="home" aria-label="回到今日">
-          <span class="brand-frame"><i></i></span>
-          <span class="brand-word"><b>切面</b><small>CUT / STORY</small></span>
-        </button>
-        <button class="install-button" id="install-button" type="button" hidden aria-label="安装应用">
-          <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14" /></svg>
-        </button>
-      </header>
-
-      <main class="main" id="main-content" tabindex="-1"></main>
-
-      <nav class="bottom-nav" id="bottom-nav" aria-label="主导航">
-        <button class="nav-item is-active" type="button" data-route="home">
-          <svg viewBox="0 0 24 24"><path d="M4 19V7l8-4 8 4v12l-8 4zM12 3v20M4 7l8 4 8-4" /></svg>
-          <span>今日</span>
-        </button>
-        <button class="nav-item" type="button" data-route="atlas">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m10.8 6.6-4.6 9.8m7-9.8 4.6 9.8M7 18h10" /></svg>
-          <span>图谱</span>
-        </button>
-        <button class="nav-item" type="button" data-route="lab">
-          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18M8 5v14m8-14v14" /></svg>
-          <span>作品</span>
-        </button>
-        <button class="nav-item" type="button" data-route="dialogue">
-          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4zM8 9h8m-8 4h5" /></svg>
-          <span>对谈</span>
-        </button>
-        <button class="nav-item" type="button" data-route="profile">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-5 4-7 8-7s7 2 8 7M5 4l2 2m10-2-2 2" /></svg>
-          <span>画像</span>
-        </button>
-      </nav>
-    </div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./data.js" defer></script>
-    <script src="./atlas-data.js" defer></script>
-    <script src="./app.js" defer></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

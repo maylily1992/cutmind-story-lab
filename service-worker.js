@@ -1,11 +1,7 @@
-const CACHE_NAME = "cutmind-story-lab-v2";
+const CACHE_NAME = "cutmind-story-os-v3";
 const CORE = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./data.js",
-  "./atlas-data.js",
-  "./app.js",
   "./manifest.webmanifest",
   "./app-icon.svg",
   "./app-icon-180.png",

@@ -122,3 +122,12 @@ const CREATIVE_PRINCIPLES = [
   "元叙事不是打破故事，而是改变观众与故事之间的契约。",
   "一次实验只改变一个变量，否则你学不到任何东西。",
 ];
+
+export {
+  DOMAINS,
+  TECHNIQUES,
+  RARE_CASES,
+  PROFILE_TRAITS,
+  INITIAL_PROFILE,
+  CREATIVE_PRINCIPLES,
+};
