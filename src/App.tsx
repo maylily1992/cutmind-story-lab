@@ -324,45 +324,17 @@ function AtlasPage({
   onClear: () => void;
   selectedNode: TechniqueNode | null;
 }) {
-  const visible = nodes.filter((node) => {
-    if (
-      query &&
-      !`${node.name} ${node.aliases.join(" ")} ${node.mechanism}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    ) {
-      return false;
-    }
-    return true;
-  }).slice(0, query ? 36 : 0);
-
   return (
     <>
       <p className="eyebrow">STORY TECHNIQUE ATLAS · {nodes.length} NODES</p>
       <h1 className="page-title">一张会生长的<br />叙事肌理网。</h1>
       <p className="page-lead">物 → 知 → 动 → 感 → 元。双指缩放、拖拽移动；从五层主环进入分支，再展开知识簇和具体技法。</p>
-      <AtlasGalaxy nodes={nodes} onOpenNode={onSelect} />
-      <div className="atlas-controls">
-        <input className="field atlas-search" onChange={(event) => setQuery(event.target.value)} placeholder="搜索技法、别名或机制，直接定位叶片…" value={query} />
-      </div>
-      {query ? (
-        <div className="atlas-search-results">
-          <div className="atlas-search-meta"><b>搜索结果</b><span>{visible.length} 个节点</span></div>
-          {visible.map((node) => (
-          <button
-            className={`atlas-node-card ${node.provenance === "user" ? "personal" : ""}`}
-            key={node.id}
-            onClick={() => onSelect(node.id)}
-            type="button"
-          >
-            <div className="atlas-node-top"><span>{node.aliases[0] ?? node.id}</span><i>{node.status}</i></div>
-            <b>{node.name}</b>
-            <p>{node.mechanism}</p>
-            <div className="atlas-node-foot"><span>{node.dimension}</span><span>{node.related.length} 条关系</span></div>
-          </button>
-          ))}
-        </div>
-      ) : null}
+      <AtlasGalaxy
+        nodes={nodes}
+        onOpenNode={onSelect}
+        query={query}
+        setQuery={setQuery}
+      />
       <SectionHead title="理论底图" note={`${sources.length} 个来源`} />
       <div className="source-list">
         {sources.slice(0, 12).map((source) => (
