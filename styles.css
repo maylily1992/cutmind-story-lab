@@ -530,6 +530,7 @@ svg { display: block; }
 .source-list b { display: block; font-family: var(--serif); font-size: 14px; }
 .source-list span { display: block; margin-top: 3px; color: #929892; font-size: 8px; }
 .source-list small { display: block; margin-top: 5px; color: #646c68; font-size: 7px; }
+.source-list a { display: inline-block; margin-top: 6px; color: var(--cyan); font-size: 7px; text-decoration: none; }
 
 .technique-list { display: grid; gap: 11px; }
 .technique-card {

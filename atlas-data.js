@@ -410,6 +410,7 @@ const SPRINT_28 = [
 ];
 
 const SOURCE_REGISTRY = [
+  { title: "Columbia Film Language Glossary", author: "Columbia University", area: "电影语言、剪辑、场面调度、声音术语", status: "已联网访问并用于术语交叉核对", url: "https://filmglossary.ccnmtl.columbia.edu/term/" },
   { title: "Narrative Discourse: An Essay in Method", author: "Gérard Genette", area: "时序、频率、聚焦、叙述层", status: "核心理论源，待联网版本核验" },
   { title: "Narrative Fiction", author: "Shlomith Rimmon-Kenan", area: "叙述交流、聚焦、不可靠叙述", status: "核心理论源" },
   { title: "Narration in the Fiction Film", author: "David Bordwell", area: "电影叙述、视点、认知", status: "核心理论源" },

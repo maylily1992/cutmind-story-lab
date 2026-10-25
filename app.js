@@ -573,6 +573,7 @@ function renderAtlas() {
         <b>${escapeHtml(source.title)}</b>
         <span>${escapeHtml(source.author)} · ${escapeHtml(source.area)}</span>
         <small>${escapeHtml(source.status)}</small>
+        ${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">打开来源 ↗</a>` : ""}
       </article>`).join("")}
     </div>
     <p class="page-lead">本版知识树先由叙事学、电影理论、剪辑师方法与新媒体理论交叉整理。当前运行环境无法访问外网，因此所有需要版本、页码、访谈原文或网络链接的条目均标为“待核验”，不以虚构引用补齐。</p>
