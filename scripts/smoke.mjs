@@ -101,5 +101,17 @@ if (!leaves.length) throw new Error("Atlas group did not expand into techniques"
 leaves[0].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 await new Promise((resolvePromise) => setTimeout(resolvePromise, 80));
 if (!document.querySelector(".node-sheet")) throw new Error("Node detail sheet missing");
+if (!document.querySelector(".plain-hero")?.textContent?.includes("一句话捅破")) {
+  throw new Error("Plain-language node explanation missing");
+}
+const proTab = [...document.querySelectorAll(".node-mode-tabs button")].find((button) =>
+  button.textContent?.includes("专业版"),
+);
+if (!proTab) throw new Error("Professional tab missing");
+proTab.click();
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 30));
+if (!document.querySelector(".node-principle")) {
+  throw new Error("Professional explanation did not open");
+}
 
 console.log(`SMOKE_OK ${bundle} chars=${text.length}`);

@@ -11,6 +11,7 @@ import {
   sources,
   sprintPlan,
 } from "./data/catalog";
+import { getPlainNodeCopy } from "./data/plainLanguage";
 import type {
   CaptureDraft,
   CutMindStore,
@@ -264,7 +265,7 @@ function HomePage({
             <span>{node.dimension}</span>
             <b>{node.name}</b>
             <small>{node.aliases[0] ?? "personal concept"}</small>
-            <p>{node.mechanism}</p>
+            <p>{getPlainNodeCopy(node).essence}</p>
           </button>
         ))}
       </div>
